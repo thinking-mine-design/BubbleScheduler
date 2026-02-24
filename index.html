@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BubbleScheduler — Direct Block Scheduling Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ore: #c8762a;
+    --ore-light: #e8943d;
+    --ore-dark: #9a5518;
+    --coal: #0e0e0f;
+    --deep: #141416;
+    --seam: #1e1e22;
+    --vein: #2a2a30;
+    --dust: #5a5a6a;
+    --quartz: #a0a0b0;
+    --chalk: #e8e8ee;
+    --white: #f5f5f8;
+    --accent: #3d9970;
+    --accent2: #2980b9;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--coal);
+    color: var(--chalk);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.2rem 3rem;
+    background: rgba(14,14,15,0.85);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(200,118,42,0.15);
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem; font-weight: 800;
+    color: var(--white);
+    letter-spacing: -0.02em;
+  }
+  .nav-logo span { color: var(--ore); }
+  .nav-links { display: flex; gap: 2.5rem; }
+  .nav-links a {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem; font-weight: 400;
+    color: var(--quartz); text-decoration: none;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--ore-light); }
+  .nav-cta {
+    background: var(--ore);
+    color: var(--white) !important;
+    padding: 0.5rem 1.2rem;
+    border-radius: 3px;
+    transition: background 0.2s !important;
+  }
+  .nav-cta:hover { background: var(--ore-light) !important; color: var(--white) !important; }
+
+  /* ── HERO ── */
+  #hero {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    padding: 8rem 3rem 4rem;
+    position: relative;
+    overflow: hidden;
+  }
+  #hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 60% at 70% 40%, rgba(200,118,42,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 40% at 20% 80%, rgba(61,153,112,0.07) 0%, transparent 60%);
+  }
+  .hero-grid-overlay {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(200,118,42,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,118,42,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  }
+  .hero-content { position: relative; z-index: 2; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ore); border: 1px solid rgba(200,118,42,0.4);
+    padding: 0.35rem 0.9rem; border-radius: 2px;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.8s ease both;
+  }
+  .hero-badge::before { content: '●'; font-size: 0.5rem; }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(3rem, 5.5vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    color: var(--white);
+    animation: fadeUp 0.8s 0.1s ease both;
+  }
+  h1 em { color: var(--ore); font-style: normal; }
+  .hero-sub {
+    margin-top: 1.8rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--quartz);
+    max-width: 480px;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+  .hero-actions {
+    margin-top: 2.5rem;
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+  .btn-primary {
+    background: var(--ore);
+    color: var(--white);
+    padding: 0.85rem 2rem;
+    border: none; border-radius: 3px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem; font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary:hover { background: var(--ore-light); transform: translateY(-1px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--chalk);
+    padding: 0.85rem 2rem;
+    border: 1px solid var(--vein);
+    border-radius: 3px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem; font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+    text-decoration: none;
+  }
+  .btn-ghost:hover { border-color: var(--ore); color: var(--ore); }
+
+  .hero-visual {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 1.2s 0.4s ease both;
+  }
+  .pit-diagram {
+    width: 100%; max-width: 500px;
+    aspect-ratio: 1;
+    position: relative;
+  }
+  .pit-diagram svg { width: 100%; height: 100%; }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    background: var(--seam);
+    border-top: 1px solid var(--vein);
+    border-bottom: 1px solid var(--vein);
+    padding: 2rem 3rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+  .stat {
+    text-align: center;
+    padding: 1rem;
+    border-right: 1px solid var(--vein);
+  }
+  .stat:last-child { border-right: none; }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem; font-weight: 800;
+    color: var(--ore);
+    line-height: 1;
+  }
+  .stat-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--dust);
+    margin-top: 0.4rem;
+  }
+
+  /* ── SECTION SHARED ── */
+  section { padding: 6rem 3rem; }
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--ore); margin-bottom: 1rem;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    font-weight: 800; line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--white);
+    max-width: 600px;
+  }
+  .section-title span { color: var(--ore); }
+  .section-body {
+    color: var(--quartz);
+    font-size: 1rem; line-height: 1.75;
+    max-width: 560px;
+    margin-top: 1.2rem;
+  }
+
+  /* ── KEY FEATURES ── */
+  #features { background: var(--deep); }
+  .features-intro { max-width: 700px; margin: 0 auto 4rem; text-align: center; }
+  .features-intro .section-title { max-width: 100%; }
+  .features-intro .section-body { max-width: 100%; }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5px;
+    background: var(--vein);
+    border: 1.5px solid var(--vein);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .feature-card {
+    background: var(--deep);
+    padding: 2.2rem;
+    transition: background 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+  .feature-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--ore), transparent);
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 0.3s;
+  }
+  .feature-card:hover { background: var(--seam); }
+  .feature-card:hover::after { transform: scaleX(1); }
+  .feature-icon {
+    width: 44px; height: 44px;
+    background: rgba(200,118,42,0.12);
+    border: 1px solid rgba(200,118,42,0.25);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.2rem;
+    font-size: 1.2rem;
+  }
+  .feature-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem; font-weight: 700;
+    color: var(--white); margin-bottom: 0.6rem;
+  }
+  .feature-desc {
+    font-size: 0.875rem; line-height: 1.65;
+    color: var(--dust);
+  }
+  .feature-tag {
+    display: inline-block;
+    margin-top: 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ore); background: rgba(200,118,42,0.1);
+    padding: 0.2rem 0.6rem; border-radius: 2px;
+  }
+
+  /* ── ENGINE SECTION ── */
+  #engine {
+    background: var(--coal);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6rem;
+    align-items: center;
+  }
+  .engine-visual {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .algo-box {
+    background: var(--seam);
+    border: 1px solid var(--vein);
+    border-radius: 6px;
+    padding: 2rem;
+    width: 100%;
+    font-family: 'DM Mono', monospace;
+  }
+  .algo-line {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--vein);
+    font-size: 0.78rem;
+  }
+  .algo-line:last-child { border-bottom: none; }
+  .algo-key { color: var(--ore); min-width: 140px; }
+  .algo-val { color: var(--quartz); }
+  .algo-badge {
+    margin-left: auto;
+    background: rgba(61,153,112,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(61,153,112,0.3);
+    font-size: 0.6rem; padding: 0.15rem 0.5rem;
+    border-radius: 2px; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .algo-badge.b { background: rgba(41,128,185,0.15); color: var(--accent2); border-color: rgba(41,128,185,0.3); }
+
+  /* ── CASE STUDIES ── */
+  #cases { background: var(--deep); }
+  .cases-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-top: 3rem;
+  }
+  .case-card {
+    background: var(--seam);
+    border: 1px solid var(--vein);
+    border-radius: 6px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.25s, transform 0.25s;
+  }
+  .case-card:hover { border-color: var(--ore); transform: translateY(-3px); }
+  .case-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 4rem; font-weight: 800;
+    color: rgba(200,118,42,0.15);
+    line-height: 1;
+    position: absolute; top: 1rem; right: 1.5rem;
+  }
+  .case-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem; font-weight: 700;
+    color: var(--white); margin-bottom: 1.2rem;
+    padding-right: 3rem;
+  }
+  .case-stat {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--vein);
+    font-size: 0.82rem;
+  }
+  .case-stat:last-of-type { border-bottom: none; }
+  .case-stat-key { color: var(--dust); font-family: 'DM Mono', monospace; font-size: 0.72rem; }
+  .case-stat-val { color: var(--ore); font-family: 'Syne', sans-serif; font-weight: 700; }
+  .case-robust {
+    margin-top: 1.2rem;
+    background: rgba(61,153,112,0.08);
+    border: 1px solid rgba(61,153,112,0.2);
+    border-radius: 3px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.75rem; color: var(--accent);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── COLLAB ── */
+  #collab {
+    background: var(--coal);
+    text-align: center;
+    padding: 5rem 3rem;
+  }
+  .collab-logos {
+    display: flex; align-items: center; justify-content: center; gap: 4rem;
+    margin-top: 3rem; flex-wrap: wrap;
+  }
+  .collab-item {
+    display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+  }
+  .collab-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.3rem; font-weight: 800;
+    color: var(--quartz);
+    letter-spacing: -0.01em;
+  }
+  .collab-role {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--dust);
+  }
+  .collab-divider { width: 1px; height: 50px; background: var(--vein); }
+
+  /* ── PATENT ── */
+  #patent {
+    background: var(--seam);
+    border-top: 1px solid var(--vein);
+    border-bottom: 1px solid var(--vein);
+    padding: 4rem 3rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+  }
+  .patent-badge {
+    display: inline-flex; align-items: center; gap: 0.7rem;
+    background: rgba(200,118,42,0.1);
+    border: 1px solid rgba(200,118,42,0.3);
+    border-radius: 3px;
+    padding: 0.5rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem; letter-spacing: 0.08em; color: var(--ore);
+    text-transform: uppercase; margin-bottom: 1.5rem;
+  }
+  .patent-id {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--quartz);
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--coal);
+    border: 1px solid var(--vein);
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .patent-features { margin-top: 1.5rem; }
+  .patent-feature {
+    display: flex; align-items: flex-start; gap: 0.8rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--vein);
+    font-size: 0.875rem; color: var(--quartz);
+  }
+  .patent-feature:last-child { border-bottom: none; }
+  .patent-feature::before { content: '→'; color: var(--ore); flex-shrink: 0; margin-top: 1px; }
+
+  /* ── PLATFORMS ── */
+  #platforms {
+    background: var(--coal);
+    padding: 5rem 3rem;
+    text-align: center;
+  }
+  .platform-grid {
+    display: flex; justify-content: center; gap: 2rem; margin-top: 3rem; flex-wrap: wrap;
+  }
+  .platform-card {
+    background: var(--seam);
+    border: 1px solid var(--vein);
+    border-radius: 6px;
+    padding: 2.5rem 3rem;
+    display: flex; flex-direction: column; align-items: center; gap: 1rem;
+    transition: border-color 0.25s;
+    min-width: 200px;
+  }
+  .platform-card:hover { border-color: var(--ore); }
+  .platform-icon { font-size: 2.5rem; }
+  .platform-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.1rem; font-weight: 700;
+    color: var(--white);
+  }
+  .platform-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* ── CTA ── */
+  #cta {
+    background: linear-gradient(135deg, var(--ore-dark) 0%, #6b3d10 50%, var(--coal) 100%);
+    padding: 7rem 3rem;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  #cta::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  #cta .section-title { max-width: 100%; color: var(--white); position: relative; }
+  #cta .section-body { max-width: 520px; margin: 1.2rem auto 0; position: relative; }
+  .cta-actions { margin-top: 2.5rem; display: flex; gap: 1rem; justify-content: center; position: relative; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--deep);
+    border-top: 1px solid var(--vein);
+    padding: 2rem 3rem;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+  }
+  .footer-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; color: var(--quartz);
+    font-size: 1rem;
+  }
+  .footer-logo span { color: var(--ore); }
+  .footer-copy {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem; color: var(--dust);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes bubble {
+    0%, 100% { r: 8; opacity: 0.6; }
+    50% { r: 12; opacity: 1; }
+  }
+  @keyframes rotate-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .bubble-pulse { animation: bubble 3s ease-in-out infinite; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    #hero, #engine, #patent {
+      grid-template-columns: 1fr;
+    }
+    .hero-visual { display: none; }
+    .cases-grid { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    nav { padding: 1rem 1.5rem; }
+    .nav-links { display: none; }
+    section { padding: 4rem 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Bubble<span>Scheduler</span></div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#engine">Engine</a>
+    <a href="#cases">Case Studies</a>
+    <a href="#collab">Collaboration</a>
+    <a href="#cta" class="nav-cta">Request Demo</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-grid-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-badge">Direct Block Scheduling · AMIRA P1210</div>
+    <h1>Mine<br>Smarter.<br><em>Schedule</em><br>Better.</h1>
+    <p class="hero-sub">
+      State-of-the-art Direct Block Scheduling engine for large-scale open pit optimization. Patent-pending Bubble-Cluster technology delivers more mineable, practical production plans.
+    </p>
+    <div class="hero-actions">
+      <a href="#cta" class="btn-primary">Request Demo</a>
+      <a href="#features" class="btn-ghost">Explore Features</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="pit-diagram">
+      <svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+        <!-- Pit layers -->
+        <ellipse cx="250" cy="420" rx="220" ry="35" fill="none" stroke="#2a2a30" stroke-width="1.5"/>
+        <ellipse cx="250" cy="370" rx="195" ry="30" fill="none" stroke="#3a2510" stroke-width="1"/>
+        <ellipse cx="250" cy="320" rx="170" ry="26" fill="none" stroke="#4a3010" stroke-width="1"/>
+        <ellipse cx="250" cy="270" rx="145" ry="22" fill="none" stroke="#5a3a15" stroke-width="1"/>
+        <ellipse cx="250" cy="220" rx="118" ry="18" fill="none" stroke="#6a4520" stroke-width="1"/>
+        <ellipse cx="250" cy="175" rx="90" ry="14" fill="none" stroke="#7a5025" stroke-width="1"/>
+
+        <!-- Bench lines -->
+        <line x1="30" y1="420" x2="470" y2="420" stroke="#1e1e22" stroke-width="1"/>
+        <line x1="55" y1="370" x2="445" y2="370" stroke="#1e1e22" stroke-width="1"/>
+        <line x1="80" y1="320" x2="420" y2="320" stroke="#1e1e22" stroke-width="1"/>
+        <line x1="105" y1="270" x2="395" y2="270" stroke="#1e1e22" stroke-width="1"/>
+        <line x1="132" y1="220" x2="368" y2="220" stroke="#1e1e22" stroke-width="1"/>
+        <line x1="160" y1="175" x2="340" y2="175" stroke="#1e1e22" stroke-width="1"/>
+
+        <!-- Bubble clusters -->
+        <g opacity="0.85">
+          <!-- Cluster 1 -->
+          <circle cx="210" cy="340" r="18" fill="rgba(200,118,42,0.25)" stroke="#c8762a" stroke-width="1.5" class="bubble-pulse" style="animation-delay:0s"/>
+          <circle cx="235" cy="355" r="14" fill="rgba(200,118,42,0.2)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:0.3s"/>
+          <circle cx="190" cy="360" r="12" fill="rgba(200,118,42,0.18)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:0.6s"/>
+          <!-- Cluster 2 -->
+          <circle cx="300" cy="295" r="16" fill="rgba(200,118,42,0.3)" stroke="#c8762a" stroke-width="1.5" class="bubble-pulse" style="animation-delay:0.9s"/>
+          <circle cx="325" cy="310" r="11" fill="rgba(200,118,42,0.2)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:1.2s"/>
+          <!-- Cluster 3 -->
+          <circle cx="245" cy="245" r="13" fill="rgba(200,118,42,0.25)" stroke="#c8762a" stroke-width="1.5" class="bubble-pulse" style="animation-delay:1.5s"/>
+          <circle cx="268" cy="258" r="10" fill="rgba(200,118,42,0.18)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:1.8s"/>
+          <circle cx="225" cy="260" r="9" fill="rgba(200,118,42,0.15)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:2.1s"/>
+          <!-- Ore zone -->
+          <circle cx="255" cy="195" r="20" fill="rgba(200,118,42,0.35)" stroke="#e8943d" stroke-width="2" class="bubble-pulse" style="animation-delay:2.4s"/>
+          <circle cx="282" cy="205" r="13" fill="rgba(200,118,42,0.28)" stroke="#e8943d" stroke-width="1.5" class="bubble-pulse" style="animation-delay:2.7s"/>
+          <circle cx="230" cy="208" r="11" fill="rgba(200,118,42,0.22)" stroke="#e8943d" stroke-width="1" class="bubble-pulse" style="animation-delay:3s"/>
+        </g>
+
+        <!-- Connections -->
+        <line x1="210" y1="340" x2="235" y2="355" stroke="rgba(200,118,42,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="210" y1="340" x2="190" y2="360" stroke="rgba(200,118,42,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="255" y1="195" x2="245" y2="245" stroke="rgba(200,118,42,0.4)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="245" y1="245" x2="300" y2="295" stroke="rgba(200,118,42,0.3)" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="300" y1="295" x2="210" y2="340" stroke="rgba(200,118,42,0.25)" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- Labels -->
+        <text x="70" y="418" font-family="DM Mono, monospace" font-size="9" fill="#5a5a6a" letter-spacing="1">BENCH 1</text>
+        <text x="70" y="368" font-family="DM Mono, monospace" font-size="9" fill="#5a5a6a" letter-spacing="1">BENCH 3</text>
+        <text x="70" y="318" font-family="DM Mono, monospace" font-size="9" fill="#5a5a6a" letter-spacing="1">BENCH 5</text>
+        <text x="100" y="268" font-family="DM Mono, monospace" font-size="9" fill="#5a5a6a" letter-spacing="1">BENCH 7</text>
+        <text x="130" y="218" font-family="DM Mono, monospace" font-size="9" fill="#c8762a" letter-spacing="1">ORE ZONE</text>
+
+        <!-- Surface -->
+        <rect x="0" y="0" width="500" height="80" fill="rgba(30,30,34,0.5)" rx="0"/>
+        <text x="250" y="35" font-family="Syne, sans-serif" font-size="13" font-weight="800" fill="#f5f5f8" text-anchor="middle" letter-spacing="-0.5">OPEN PIT MINE</text>
+        <text x="250" y="55" font-family="DM Mono, monospace" font-size="9" fill="#c8762a" text-anchor="middle" letter-spacing="2">BUBBLE-CLUSTER SCHEDULING</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-num">8M+</div>
+    <div class="stat-label">Blocks per run</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">60</div>
+    <div class="stat-label">Planning periods</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">7</div>
+    <div class="stat-label">Process destinations</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">7</div>
+    <div class="stat-label">Mine sites (district)</div>
+  </div>
+</div>
+
+<!-- KEY FEATURES -->
+<section id="features">
+  <div class="features-intro">
+    <div class="section-label">Core Capabilities</div>
+    <h2 class="section-title">Every feature a <span>world-class</span> mine plan demands</h2>
+    <p class="section-body">
+      Mining software must meet rigorous operational, mathematical, and practical requirements. BubbleScheduler is engineered to exceed them all.
+    </p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">⚙️</div>
+      <div class="feature-title">Direct Block Scheduling Engine</div>
+      <div class="feature-desc">State-of-the-art DBS engine operating directly on block models — no pit shells required. Handles millions of blocks across hundreds of periods without loss of fidelity.</div>
+      <div class="feature-tag">Core DBS</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔢</div>
+      <div class="feature-title">MIP / LP Optimization</div>
+      <div class="feature-desc">Built-in LP engine powered by the Bienstock-Zuckerberg algorithm. Compatible with industry-leading solvers Gurobi and CPLEX for maximum performance flexibility.</div>
+      <div class="feature-tag">Solver Engine</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🏭</div>
+      <div class="feature-title">Multi-Destination Routing</div>
+      <div class="feature-desc">Configure multiple processes, mill circuits, waste dumps, and leach pads. Apply independent resource constraints per destination for realistic mine-to-mill planning.</div>
+      <div class="feature-tag">Routing</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📦</div>
+      <div class="feature-title">Stockpile Management</div>
+      <div class="feature-desc">Dynamic stockpile modeling enables low-grade ore storage and reclaim strategies. Optimize grade blending decisions across time horizons with full grade tracking.</div>
+      <div class="feature-tag">Inventory</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🫧</div>
+      <div class="feature-title">Bubble-Cluster Technology</div>
+      <div class="feature-desc">Patent-pending clustering enforces mining width constraints and sinking rate limits. Groups of blocks are scheduled together, generating geometrically practical and mineable sequences.</div>
+      <div class="feature-tag">US20210208305A1</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🛡️</div>
+      <div class="feature-title">Robust Optimization</div>
+      <div class="feature-desc">Built-in robust methodology evaluates plans under uncertainty: commodity price volatility, processing plant commissioning dates, and underground ore production variability.</div>
+      <div class="feature-tag">Risk Analysis</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📏</div>
+      <div class="feature-title">Resource Constraints</div>
+      <div class="feature-desc">Define and enforce multiple simultaneous resource constraints including mining rate, processing capacity, equipment hours, haul road capacity, and water usage limits.</div>
+      <div class="feature-tag">Constraints</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌐</div>
+      <div class="feature-title">District Optimization</div>
+      <div class="feature-desc">Simultaneously optimize multiple mine sites in a district, coordinating shared processing infrastructure and capital allocation across complex mine portfolios.</div>
+      <div class="feature-tag">Multi-Site</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🖥️</div>
+      <div class="feature-title">Cross-Platform App</div>
+      <div class="feature-desc">Native desktop application available for both Windows and macOS. Designed for mine planning engineers with an intuitive interface that requires no programming background.</div>
+      <div class="feature-tag">Windows · macOS</div>
+    </div>
+  </div>
+</section>
+
+<!-- ENGINE -->
+<section id="engine">
+  <div class="engine-visual">
+    <div class="algo-box">
+      <div style="font-family:'Syne',sans-serif; font-size:0.8rem; font-weight:700; color:#c8762a; letter-spacing:0.05em; text-transform:uppercase; margin-bottom:1.2rem;">Solver Configuration</div>
+      <div class="algo-line">
+        <span class="algo-key">ENGINE</span>
+        <span class="algo-val">Direct Block Scheduling</span>
+        <span class="algo-badge">NATIVE</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">LP ALGORITHM</span>
+        <span class="algo-val">Bienstock-Zuckerberg</span>
+        <span class="algo-badge">BUILT-IN</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">MIP SOLVER</span>
+        <span class="algo-val">Internal / Gurobi / CPLEX</span>
+        <span class="algo-badge b">COMPATIBLE</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">SCALE</span>
+        <span class="algo-val">Up to 8M blocks</span>
+        <span class="algo-badge">TESTED</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">PERIODS</span>
+        <span class="algo-val">Up to 60 time steps</span>
+        <span class="algo-badge">TESTED</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">PROCESSES</span>
+        <span class="algo-val">Up to 7 destinations</span>
+        <span class="algo-badge">TESTED</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">ROBUST OPT.</span>
+        <span class="algo-val">Price · Build · UG Ore</span>
+        <span class="algo-badge b">SCENARIO</span>
+      </div>
+      <div class="algo-line">
+        <span class="algo-key">STOCKPILES</span>
+        <span class="algo-val">Multi-grade tracking</span>
+        <span class="algo-badge">ACTIVE</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="section-label">Mathematical Core</div>
+    <h2 class="section-title">The most <span>advanced</span> DBS engine available</h2>
+    <p class="section-body">
+      BubbleScheduler's engine is built on the Bienstock-Zuckerberg LP relaxation — the gold standard for large-scale open pit scheduling. The mixed-integer programming formulation is solved either by our native LP engine or delegated to enterprise-grade solvers like Gurobi and CPLEX.
+    </p>
+    <p class="section-body" style="margin-top:1rem;">
+      Unlike traditional scheduling approaches that rely on pre-computed ultimate pit limits, BubbleScheduler operates directly on the block model — maximizing NPV without the loss of resolution inherent in nested shell methods.
+    </p>
+    <div style="display:flex; gap:1rem; margin-top:2rem; flex-wrap:wrap;">
+      <div style="background:var(--seam); border:1px solid var(--vein); border-radius:4px; padding:0.8rem 1.2rem; font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--quartz);">
+        <span style="color:var(--ore);">NPV</span> Maximization
+      </div>
+      <div style="background:var(--seam); border:1px solid var(--vein); border-radius:4px; padding:0.8rem 1.2rem; font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--quartz);">
+        <span style="color:var(--ore);">B-Z</span> LP Relaxation
+      </div>
+      <div style="background:var(--seam); border:1px solid var(--vein); border-radius:4px; padding:0.8rem 1.2rem; font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--quartz);">
+        <span style="color:var(--ore);">MIP</span> Branching
+      </div>
+      <div style="background:var(--seam); border:1px solid var(--vein); border-radius:4px; padding:0.8rem 1.2rem; font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--quartz);">
+        <span style="color:var(--ore);">API</span> Gurobi / CPLEX
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PATENT / BUBBLE CLUSTERS -->
+<section id="patent">
+  <div>
+    <div class="patent-badge">⚡ Patented Technology</div>
+    <div class="section-label">Innovation</div>
+    <h2 class="section-title">Bubble-Cluster <span>Scheduling</span></h2>
+    <p class="section-body">
+      Our patent-pending bubble-cluster methodology groups spatially connected blocks into geometrically coherent clusters. These clusters enforce real-world mining constraints that traditional DBS models ignore.
+    </p>
+    <div class="patent-id">US20210208305A1</div>
+    <div class="patent-features">
+      <div class="patent-feature">Mining width constraints enforced per period and bench</div>
+      <div class="patent-feature">Sinking rate limits control vertical advancement speed</div>
+      <div class="patent-feature">Geometrically mineable sequences — not just mathematically optimal</div>
+      <div class="patent-feature">Practical plans that reduce re-scheduling in execution</div>
+      <div class="patent-feature">Compatible with complex orebody geometries and faults</div>
+    </div>
+  </div>
+  <div>
+    <svg viewBox="0 0 400 360" xmlns="http://www.w3.org/2000/svg" style="width:100%">
+      <!-- Grid blocks -->
+      <g opacity="0.3">
+        <rect x="20" y="20" width="360" height="320" fill="none" stroke="#2a2a30" stroke-width="0.5"/>
+        <!-- Grid lines -->
+        <line x1="60" y1="20" x2="60" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="100" y1="20" x2="100" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="140" y1="20" x2="140" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="180" y1="20" x2="180" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="220" y1="20" x2="220" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="260" y1="20" x2="260" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="300" y1="20" x2="300" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="340" y1="20" x2="340" y2="340" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="60" x2="380" y2="60" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="100" x2="380" y2="100" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="140" x2="380" y2="140" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="180" x2="380" y2="180" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="220" x2="380" y2="220" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="260" x2="380" y2="260" stroke="#2a2a30" stroke-width="0.5"/>
+        <line x1="20" y1="300" x2="380" y2="300" stroke="#2a2a30" stroke-width="0.5"/>
+      </g>
+      <!-- Bubble clusters -->
+      <!-- Period 1 cluster -->
+      <ellipse cx="200" cy="100" rx="55" ry="35" fill="rgba(200,118,42,0.15)" stroke="#c8762a" stroke-width="2" stroke-dasharray="0"/>
+      <text x="200" y="97" font-family="DM Mono" font-size="9" fill="#c8762a" text-anchor="middle">PERIOD 1</text>
+      <text x="200" y="110" font-family="DM Mono" font-size="8" fill="#9a5518" text-anchor="middle">BUBBLE CLUSTER</text>
+      <!-- Individual bubbles in cluster -->
+      <circle cx="180" cy="100" r="15" fill="rgba(200,118,42,0.2)" stroke="#c8762a" stroke-width="1.5" class="bubble-pulse" style="animation-delay:0.2s"/>
+      <circle cx="205" cy="95" r="13" fill="rgba(200,118,42,0.18)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:0.5s"/>
+      <circle cx="225" cy="105" r="11" fill="rgba(200,118,42,0.15)" stroke="#c8762a" stroke-width="1" class="bubble-pulse" style="animation-delay:0.8s"/>
+
+      <!-- Period 2 cluster -->
+      <ellipse cx="200" cy="190" rx="75" ry="40" fill="rgba(200,118,42,0.1)" stroke="#9a5518" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="200" y="188" font-family="DM Mono" font-size="9" fill="#9a5518" text-anchor="middle">PERIOD 2</text>
+      <text x="200" y="200" font-family="DM Mono" font-size="8" fill="#6b3d10" text-anchor="middle">EXPANDED CLUSTER</text>
+      <circle cx="160" cy="190" r="17" fill="rgba(200,118,42,0.12)" stroke="#9a5518" stroke-width="1" class="bubble-pulse" style="animation-delay:1s"/>
+      <circle cx="190" cy="182" r="14" fill="rgba(200,118,42,0.12)" stroke="#9a5518" stroke-width="1" class="bubble-pulse" style="animation-delay:1.3s"/>
+      <circle cx="215" cy="195" r="16" fill="rgba(200,118,42,0.12)" stroke="#9a5518" stroke-width="1" class="bubble-pulse" style="animation-delay:1.6s"/>
+      <circle cx="240" cy="185" r="12" fill="rgba(200,118,42,0.1)" stroke="#9a5518" stroke-width="1" class="bubble-pulse" style="animation-delay:1.9s"/>
+
+      <!-- Sinking rate arrow -->
+      <line x1="340" y1="80" x2="340" y2="220" stroke="#c8762a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <text x="355" y="150" font-family="DM Mono" font-size="8" fill="#c8762a" transform="rotate(90,355,150)">SINKING RATE</text>
+
+      <!-- Mining width arrow -->
+      <line x1="80" y1="320" x2="320" y2="320" stroke="#3d9970" stroke-width="1.5"/>
+      <text x="200" y="335" font-family="DM Mono" font-size="8" fill="#3d9970" text-anchor="middle" letter-spacing="1">MINING WIDTH CONSTRAINT</text>
+
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#c8762a"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+</section>
+
+<!-- CASE STUDIES -->
+<section id="cases">
+  <div class="section-label">Validation</div>
+  <h2 class="section-title">Real-world <span>case studies</span> at massive scale</h2>
+  <p class="section-body">
+    BubbleScheduler has been validated on some of the largest and most complex open pit scheduling problems in the mining industry.
+  </p>
+  <div class="cases-grid">
+    <div class="case-card">
+      <div class="case-num">01</div>
+      <div class="case-title">Integration of Two Large-Scale Copper Open Pit Mines</div>
+      <div class="case-stat">
+        <span class="case-stat-key">Block Model</span>
+        <span class="case-stat-val">8M blocks</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Processes</span>
+        <span class="case-stat-val">7 destinations</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Time Horizon</span>
+        <span class="case-stat-val">60 periods</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Mine Sites</span>
+        <span class="case-stat-val">2 integrated pits</span>
+      </div>
+    </div>
+    <div class="case-card">
+      <div class="case-num">02</div>
+      <div class="case-title">Robust Analysis Under Processing Plant &amp; UG Ore Uncertainty</div>
+      <div class="case-stat">
+        <span class="case-stat-key">Block Model</span>
+        <span class="case-stat-val">6M blocks</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Processes</span>
+        <span class="case-stat-val">7 destinations</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Time Horizon</span>
+        <span class="case-stat-val">40 periods</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Mine Sites</span>
+        <span class="case-stat-val">1 large pit</span>
+      </div>
+      <div class="case-robust">⚡ Robust: Plant construction year + UG ore production uncertainty</div>
+    </div>
+    <div class="case-card">
+      <div class="case-num">03</div>
+      <div class="case-title">District Optimization Under Copper Price Uncertainty</div>
+      <div class="case-stat">
+        <span class="case-stat-key">Block Model</span>
+        <span class="case-stat-val">8M blocks</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Processes</span>
+        <span class="case-stat-val">2 destinations</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Time Horizon</span>
+        <span class="case-stat-val">20 periods</span>
+      </div>
+      <div class="case-stat">
+        <span class="case-stat-key">Mine Sites</span>
+        <span class="case-stat-val">7 sites (district)</span>
+      </div>
+      <div class="case-robust">⚡ Robust: Copper selling price uncertainty scenarios</div>
+    </div>
+  </div>
+</section>
+
+<!-- COLLAB -->
+<section id="collab">
+  <div class="section-label">Developed With</div>
+  <h2 class="section-title" style="max-width:100%;">Built through world-class <span>industry collaboration</span></h2>
+  <p class="section-body" style="max-width:600px; margin:1rem auto 0;">
+    BubbleScheduler was developed as part of the AMIRA International project P1210, in collaboration with two of the world's largest gold and copper mining companies.
+  </p>
+  <div class="collab-logos">
+    <div class="collab-item">
+      <div class="collab-name">AMIRA</div>
+      <div class="collab-role">Project P1210 · Lead Research</div>
+    </div>
+    <div class="collab-divider"></div>
+    <div class="collab-item">
+      <div class="collab-name">Newmont</div>
+      <div class="collab-role">Industry Partner · Validation</div>
+    </div>
+    <div class="collab-divider"></div>
+    <div class="collab-item">
+      <div class="collab-name">Newcrest</div>
+      <div class="collab-role">Industry Partner · Case Studies</div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORMS -->
+<section id="platforms">
+  <div class="section-label">Availability</div>
+  <h2 class="section-title" style="max-width:100%; text-align:center;">Native desktop app. <span>Both platforms.</span></h2>
+  <div class="platform-grid">
+    <div class="platform-card">
+      <div class="platform-icon">🪟</div>
+      <div class="platform-name">Windows</div>
+      <div class="platform-status">Available Now</div>
+    </div>
+    <div class="platform-card">
+      <div class="platform-icon">🍎</div>
+      <div class="platform-name">macOS</div>
+      <div class="platform-status">Available Now</div>
+    </div>
+  </div>
+  <p style="margin-top:2rem; color:var(--dust); font-family:'DM Mono',monospace; font-size:0.75rem; letter-spacing:0.05em;">
+    Compatible with Gurobi · CPLEX · Built-in LP solver
+  </p>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <h2 class="section-title">Ready to optimize your <em style="color:#f5f5f8; font-style:normal;">mine plan?</em></h2>
+  <p class="section-body">
+    Contact our team to schedule a demonstration on your block model and discover what BubbleScheduler can unlock for your operation.
+  </p>
+  <div class="cta-actions">
+    <a href="#" class="btn-primary" style="background:var(--white); color:var(--ore-dark);">Request a Demo</a>
+    <a href="#" class="btn-ghost" style="border-color:rgba(255,255,255,0.3); color:var(--white);">Download Datasheet</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Bubble<span>Scheduler</span></div>
+  <div class="footer-copy">AMIRA Project P1210 · In collaboration with Newmont & Newcrest · Patent US20210208305A1</div>
+  <div class="footer-copy">© 2024 BubbleScheduler. All rights reserved.</div>
+</footer>
+
+</body>
+</html>
